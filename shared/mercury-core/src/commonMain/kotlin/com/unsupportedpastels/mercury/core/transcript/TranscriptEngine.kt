@@ -431,6 +431,12 @@ object TranscriptEngine {
             generatingStatusText = null,
         ).appendRow(role = "user", text = text, completed = true)
 
+    /** Removes the latest user row echoing [text]: Hermes proved that submission was never queued. */
+    fun withdrawUserMessage(state: TranscriptSnapshot, text: String): TranscriptSnapshot {
+        val index = state.rows.indexOfLast { it.role == "user" && it.text == text }
+        return if (index < 0) state else state.copy(rows = state.rows.filterIndexed { i, _ -> i != index })
+    }
+
     // MARK: Internal helpers
 
     private fun restoredRow(message: RestoredMessage, id: Long): TranscriptRow? {

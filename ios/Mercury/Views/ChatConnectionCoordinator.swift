@@ -113,7 +113,7 @@ extension ChatView {
                                profile: requestedProfile, runtime: nil)
                 appModel.backgroundTasksBySession[backgroundTaskScope] = tasks
                 _ = await loadTranscript(durableSessionID: state.durableID ?? sessionID, using: candidate)
-                state.connectionNote = "Retained session unavailable. Retry to reconnect explicitly."
+                state.connectionNote = "This device no longer controls the live session, so this is the saved chat. Retry to take control here."
                 throw ChatError.transport("Retained session unavailable")
             }
 

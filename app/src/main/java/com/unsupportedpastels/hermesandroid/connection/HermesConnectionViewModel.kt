@@ -57,6 +57,7 @@ import com.unsupportedpastels.hermesandroid.gateway.HermesChatConnection
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatEvent
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatException
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatMethodNotFoundException
+import com.unsupportedpastels.hermesandroid.gateway.HermesChatPromptRefusedException
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatProtocolException
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatResponseStatus
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatGateway
@@ -3844,8 +3845,14 @@ class HermesConnectionViewModel(
                     }
                 } else {
                     clearSendingState(durableSessionId)
+                    // An ownership refusal that proves nothing was queued withdraws the
+                    // optimistic row; otherwise each resend leaves another phantom copy.
+                    val withdrawn = promptStaged &&
+                        (error as? HermesChatPromptRefusedException)?.refusal?.nothingSent == true
+                    if (withdrawn) restoreUnstartedTurnProgress()
                     updateChat(durableSessionId) { current ->
                         current.copy(
+                            messages = if (withdrawn) current.messages.withoutLastUserRow(text) else current.messages,
                             error = error.message?.take(160) ?: "Could not send message",
                         )
                     }
@@ -5812,7 +5819,8 @@ class HermesConnectionViewModel(
                         backgroundTasks = current.backgroundTasks.recoverRelayTasks(
                             recoverySnapshot, serverDurableId(durableSessionId).value, profile),
                         connectionRecoveryAvailable = true,
-                        error = "Live session ownership was lost. Background status shows only recorded evidence.",
+                        error = "This phone no longer controls the live session, so this is the saved chat. " +
+                            "Tap Retry connection to take control here.",
                     ) }
                     automaticChatReconnects.remove(durableSessionId)
                     closeChatSessionNonCancellably(candidate)
@@ -7331,4 +7339,9 @@ class HermesConnectionViewModel(
             ) as T
         }
     }
+}
+
+private fun List<ChatMessage>.withoutLastUserRow(text: String): List<ChatMessage> {
+    val index = indexOfLast { it.role == ChatMessageRole.User && it.text == text }
+    return if (index < 0) this else filterIndexed { i, _ -> i != index }
 }

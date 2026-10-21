@@ -3,6 +3,7 @@ package com.unsupportedpastels.hermesandroid.gateway
 import com.unsupportedpastels.hermesandroid.app.DurableSessionId
 import com.unsupportedpastels.hermesandroid.app.ProjectSummary
 import com.unsupportedpastels.hermesandroid.connection.ServerOrigin
+import com.unsupportedpastels.mercury.core.rpc.PromptRefusalKind
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -492,6 +493,35 @@ class HermesChatGatewayTest {
         assertTrue(error is HermesChatProtocolException)
         assertEquals("A folder with that name already exists.", error?.message)
         assertTrue(error?.message?.contains("folder_exists") != true)
+        connection.close()
+    }
+
+    @Test
+    fun promptOwnershipRefusalKeepsHermesReasonWithoutEchoingServerProse() = runTest {
+        val socket = ScriptedSocket()
+        socket.onSend = { frame ->
+            val request = Json.parseToJsonElement(frame).jsonObject
+            socket.offer(
+                """{"jsonrpc":"2.0","id":${request["id"]!!.jsonPrimitive.content},"error":{"code":4090,"message":"server prose","data":{"reason":"SESSION_OWNER_UNCONFIRMED"}}}""",
+            )
+        }
+        val connection = HermesChatGateway(
+            origin = ServerOrigin.parse("https://hermes.example"),
+            accessToken = "opaque-access",
+            ticketClient = RecordingTicketClient("ticket-1"),
+            socketFactory = RecordingSocketFactory(socket),
+            parentScope = backgroundScope,
+        ).connect()
+
+        val failure = runCatching {
+            connection.submitPrompt(RuntimeSessionId("runtime-1"), "hello")
+        }.exceptionOrNull()
+
+        assertTrue(failure is HermesChatPromptRefusedException)
+        val refusal = (failure as HermesChatPromptRefusedException).refusal
+        assertEquals(PromptRefusalKind.OwnerUnconfirmed, refusal.kind)
+        assertFalse(refusal.nothingSent)
+        assertFalse(failure.message.orEmpty().contains("server prose"))
         connection.close()
     }
 

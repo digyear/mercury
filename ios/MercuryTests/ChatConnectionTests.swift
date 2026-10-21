@@ -348,6 +348,24 @@ final class ChatConnectionTests: XCTestCase {
         }
     }
 
+    func testPromptOwnershipRefusalKeepsReasonWithoutServerProse() async throws {
+        let socket = ConnectionTestSocket(frames: [])
+        socket.autoRespond = { sent in
+            guard sent.contains(#""method":"prompt.submit""#) else { return nil }
+            return #"{"jsonrpc":"2.0","id":1,"error":{"code":4090,"message":"server prose","data":{"reason":"SESSION_OWNER_BUSY"}}}"#
+        }
+        let connection = try ChatConnection(socket: socket)
+        _ = connection.start()
+
+        do {
+            _ = try await connection.submitPrompt(runtimeSessionID: "rt-1", text: "hi")
+            XCTFail("expected ChatPromptRefusedError")
+        } catch let error as ChatPromptRefusedError {
+            XCTAssertTrue(error.nothingSent)
+            XCTAssertFalse(error.message.contains("server prose"))
+        }
+    }
+
     func testMalformedFrameFailsPendingRequest() async throws {
         let socket = ConnectionTestSocket(frames: [
             .frame("this is not json"),

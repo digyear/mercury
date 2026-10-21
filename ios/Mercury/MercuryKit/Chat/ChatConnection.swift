@@ -935,6 +935,16 @@ final class ChatConnection: @unchecked Sendable {
                 continuation.finish(throwing: RelayFoldersError.hostRejected(safeMessage))
                 return
             }
+            if method == "prompt.submit",
+               let refusal = MercuryCore.PromptRefusalPolicy.shared.classify(
+                   code: code.map { KotlinLong(value: $0) },
+                   reason: (errorObject["data"] as? [String: Any])?["reason"] as? String,
+                   message: errorObject["message"] as? String
+               ) {
+                continuation.finish(throwing: ChatPromptRefusedError(
+                    message: refusal.message, nothingSent: refusal.nothingSent))
+                return
+            }
             let suffix = code.map { " (\($0))" } ?? ""
             continuation.finish(throwing: ChatError.protocolError("Hermes RPC request failed\(suffix)"))
             return

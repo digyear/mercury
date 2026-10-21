@@ -14,6 +14,7 @@ import com.unsupportedpastels.hermesandroid.connection.ServerOrigin
 import com.unsupportedpastels.mercury.core.files.RelayFoldersContract
 import com.unsupportedpastels.mercury.core.profiles.ProfileCatalogPolicy
 import com.unsupportedpastels.mercury.core.sessions.SessionPresencePolicy
+import com.unsupportedpastels.mercury.core.rpc.PromptRefusalPolicy
 import com.unsupportedpastels.mercury.core.rpc.RpcResultDecoder
 import com.unsupportedpastels.mercury.core.transcript.ChatEventDecoder
 import kotlinx.coroutines.CancellationException
@@ -828,6 +829,13 @@ class HermesChatConnection internal constructor(
                     ?: "The Relay folder request failed."
                 deferred.completeExceptionally(HermesChatProtocolException(safeMessage))
                 return
+            }
+            if (method == "prompt.submit") {
+                val reason = (error["data"] as? JsonObject)?.stringValue("reason")
+                PromptRefusalPolicy.classify(code, reason, error.stringValue("message"))?.let { refusal ->
+                    deferred.completeExceptionally(HermesChatPromptRefusedException(refusal))
+                    return
+                }
             }
             val suffix = code?.let { " ($it)" }.orEmpty()
             deferred.completeExceptionally(

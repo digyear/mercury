@@ -175,6 +175,7 @@ extension ChatView {
         state.isComposerActionPending = true
         state.followBottom = true
         Task {
+            var appendedPrompt: String?
             do {
                 // Attach-on-send, Android parity: images ride the session's
                 // queued list (image.attach_bytes); files return @file: refs.
@@ -227,6 +228,7 @@ extension ChatView {
                     }
                     return
                 }
+                appendedPrompt = prompt
                 await MainActor.run {
                     state.transcript.appendUserMessage(prompt)
                     state.stagedAttachments = []
@@ -244,13 +246,23 @@ extension ChatView {
                     state.isComposerActionPending = false
                 }
             } catch {
+                let withdrawablePrompt = appendedPrompt
                 await MainActor.run {
                     let resolution = state.promptSubmission.resolve(attempt: attempt, accepted: false)
                     guard resolution != .stale else { return }
                     switch resolution {
                     case .restoreDraft(let original):
                         state.progress = state.progress.restoreUnstartedTurn(previous: progressBeforeTurn, resetVersion: resetVersion)
-                        state.composerError = "Send failed — check the connection and try again."
+                        if let refusal = error as? ChatPromptRefusedError {
+                            // Only a refusal proving nothing was queued withdraws the
+                            // optimistic row; otherwise each resend leaves a phantom copy.
+                            if refusal.nothingSent, let withdrawablePrompt {
+                                state.transcript.withdrawUserMessage(withdrawablePrompt)
+                            }
+                            state.composerError = refusal.message
+                        } else {
+                            state.composerError = "Send failed — check the connection and try again."
+                        }
                         state.isSending = false
                         state.isComposerActionPending = false
                         // Do not overwrite text the user entered for a newer

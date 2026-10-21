@@ -54,6 +54,16 @@ extension ChatError: LocalizedError {
     }
 }
 
+/// Hermes refused `prompt.submit` because another owner holds the session
+/// (4090). `message` is client-authored by the shared policy, never server prose.
+struct ChatPromptRefusedError: Error, Sendable, Equatable, LocalizedError {
+    let message: String
+    /// Hermes proved nothing was queued, so the optimistic user row can go.
+    let nothingSent: Bool
+
+    var errorDescription: String? { message }
+}
+
 /// JSON-RPC's standard "method not found" error, defined now for the later
 /// request/response layer even though this slice does not implement RPC calls.
 struct ChatMethodNotFoundError: Error, Sendable, Equatable, LocalizedError {

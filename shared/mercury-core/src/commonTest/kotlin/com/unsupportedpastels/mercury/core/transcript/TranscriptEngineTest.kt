@@ -430,6 +430,20 @@ class TranscriptEngineTest {
         assertTrue(state.rows.single().completed)
     }
 
+    @Test
+    fun withdrawUserMessageRemovesOnlyTheLatestMatchingUserRow() {
+        var state = TranscriptEngine.appendUserMessage(initial(), "hi")
+        state = TranscriptEngine.appendUserMessage(state, "other")
+        state = TranscriptEngine.appendUserMessage(state, "hi")
+        val firstId = state.rows.first().id
+
+        val withdrawn = TranscriptEngine.withdrawUserMessage(state, "hi")
+
+        assertEquals(listOf("hi", "other"), withdrawn.rows.map { it.text })
+        assertEquals(firstId, withdrawn.rows.first().id)
+        assertEquals(withdrawn, TranscriptEngine.withdrawUserMessage(withdrawn, "missing"))
+    }
+
     // --- coalescing -----------------------------------------------------------
 
     @Test

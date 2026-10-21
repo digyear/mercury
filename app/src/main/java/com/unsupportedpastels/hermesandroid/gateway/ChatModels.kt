@@ -1,5 +1,6 @@
 package com.unsupportedpastels.hermesandroid.gateway
 
+import com.unsupportedpastels.mercury.core.rpc.PromptRefusal
 import com.unsupportedpastels.mercury.core.transcript.ClarifyQuestion
 import com.unsupportedpastels.hermesandroid.app.DurableSessionId
 import com.unsupportedpastels.hermesandroid.app.RunTodoItem
@@ -54,6 +55,11 @@ open class HermesChatProtocolException(
 class HermesChatMethodNotFoundException(
     val method: String,
 ) : HermesChatProtocolException("Hermes method is not supported: $method")
+
+/** Hermes refused `prompt.submit` because another owner holds the session (4090). */
+class HermesChatPromptRefusedException(
+    val refusal: PromptRefusal,
+) : HermesChatProtocolException(refusal.message)
 
 class HermesChatTransportException(
     message: String,

@@ -20,7 +20,9 @@ import com.unsupportedpastels.hermesandroid.gateway.HermesChatConnector
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatEvent
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatResponse
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatResponseStatus
+import com.unsupportedpastels.hermesandroid.gateway.HermesChatPromptRefusedException
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatProtocolException
+import com.unsupportedpastels.mercury.core.rpc.PromptRefusalPolicy
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatSession
 import com.unsupportedpastels.hermesandroid.gateway.HermesChatTransportException
 import com.unsupportedpastels.hermesandroid.gateway.InflightPrompt
@@ -470,6 +472,38 @@ class HermesChatIntegrationTest {
         // foreground "working" notification must not be started for this session.
         assertFalse(notifications.turnStarts.any { it == durableId })
         assertEquals(0, notifications.lastActiveCount)
+    }
+
+    @Test
+    fun ownershipRefusalThatProvesNothingWasSentWithdrawsTheUserBubble() = runTest(dispatcher) {
+        val refusal = PromptRefusalPolicy.classify(4090, "SESSION_OWNER_BUSY", null)!!
+        val session = StreamingChatSession(submitFailure = HermesChatPromptRefusedException(refusal))
+        val viewModel = chatViewModel(session)
+        advanceUntilIdle()
+
+        viewModel.sendMessage(durableId, "Test message")
+        advanceUntilIdle()
+
+        val chat = viewModel.snapshots.value.chatSessions.getValue(durableId)
+        assertFalse(chat.messages.any { it.role == ChatMessageRole.User && it.text == "Test message" })
+        assertEquals(refusal.message, chat.error)
+        assertFalse(chat.isSending)
+    }
+
+    @Test
+    fun unconfirmedOwnershipRefusalKeepsTheUserBubble() = runTest(dispatcher) {
+        val refusal = PromptRefusalPolicy.classify(4090, "SESSION_OWNER_UNCONFIRMED", null)!!
+        val session = StreamingChatSession(submitFailure = HermesChatPromptRefusedException(refusal))
+        val viewModel = chatViewModel(session)
+        advanceUntilIdle()
+
+        viewModel.sendMessage(durableId, "Test message")
+        advanceUntilIdle()
+
+        val chat = viewModel.snapshots.value.chatSessions.getValue(durableId)
+        assertEquals(1, chat.messages.count { it.role == ChatMessageRole.User && it.text == "Test message" })
+        assertEquals(refusal.message, chat.error)
+        assertFalse(chat.isSending)
     }
 
     @Test

@@ -243,6 +243,10 @@ struct TranscriptState: Sendable, Equatable {
     mutating func appendUserMessage(_ text: String) {
         core = MercuryCore.TranscriptEngine.shared.appendUserMessage(state: core, text: text)
     }
+
+    mutating func withdrawUserMessage(_ text: String) {
+        core = MercuryCore.TranscriptEngine.shared.withdrawUserMessage(state: core, text: text)
+    }
 }
 
 // MARK: - Renderable timeline units
