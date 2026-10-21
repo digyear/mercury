@@ -47,8 +47,10 @@ class ProjectSummary(
     primaryPath: String?,
     sessionCount: Int,
     previewSessions: List<SessionSummary>,
+    lastActiveEpochSeconds: Double? = null,
 ) {
     val label: String = label.take(MAX_LABEL_LENGTH).ifBlank { id.value }
+    val lastActiveEpochSeconds: Double? = lastActiveEpochSeconds?.takeIf { it.isFinite() }
     val primaryPath: String? = primaryPath
         ?.take(MAX_PATH_LENGTH)
         ?.takeIf(String::isNotBlank)
@@ -69,13 +71,16 @@ class ProjectSummary(
         primaryPath: String? = this.primaryPath,
         sessionCount: Int = this.sessionCount,
         previewSessions: List<SessionSummary> = this.previewSessions,
-    ) = ProjectSummary(id, label, primaryPath, sessionCount, previewSessions)
+        lastActiveEpochSeconds: Double? = this.lastActiveEpochSeconds,
+    ) = ProjectSummary(id, label, primaryPath, sessionCount, previewSessions, lastActiveEpochSeconds)
 
     override fun equals(other: Any?): Boolean = other is ProjectSummary &&
         id == other.id && label == other.label && primaryPath == other.primaryPath &&
-        sessionCount == other.sessionCount && previewSessions == other.previewSessions
+        sessionCount == other.sessionCount && previewSessions == other.previewSessions &&
+        lastActiveEpochSeconds == other.lastActiveEpochSeconds
 
-    override fun hashCode(): Int = listOf(id, label, primaryPath, sessionCount, previewSessions).hashCode()
+    override fun hashCode(): Int =
+        listOf(id, label, primaryPath, sessionCount, previewSessions, lastActiveEpochSeconds).hashCode()
 
     companion object {
         const val MAX_LABEL_LENGTH = 160

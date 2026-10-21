@@ -53,6 +53,8 @@ internal fun RecentSessionsScreen(
     onRefreshWorkingPresence: () -> Unit = {},
     onSessionSelected: (DurableSessionId) -> Unit,
     clock: () -> Long = System::currentTimeMillis,
+    showNewTaskAction: Boolean = false,
+    onNewTask: () -> Unit = {},
 ) {
     val nowMillis = rememberSessionRecencyTime(clock)
     val semanticColors = LocalHermesSemanticColors.current
@@ -115,6 +117,9 @@ internal fun RecentSessionsScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
+        floatingActionButton = {
+            if (showNewTaskAction) NewTaskFab(onClick = onNewTask)
+        },
         topBar = {
             TopAppBar(
                 title = {

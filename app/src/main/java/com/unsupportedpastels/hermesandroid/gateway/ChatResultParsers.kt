@@ -152,7 +152,9 @@ internal fun parseProjectSummary(
         ?: value?.longValue("session_count")?.toInt()
         ?: value?.longValue("count")?.toInt()
         ?: fallbackSessionCount
-    return ProjectSummary(id, label, path, sessionCount, parsedPreview)
+    val lastActive = value?.get("lastActive")?.jsonPrimitive?.doubleOrNull
+        ?: value?.get("last_active")?.jsonPrimitive?.doubleOrNull
+    return ProjectSummary(id, label, path, sessionCount, parsedPreview, lastActive)
 }
 
 private fun parseSessionSummary(

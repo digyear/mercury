@@ -75,6 +75,7 @@ import com.unsupportedpastels.mercury.core.relay.RelayTargetStatus
 import com.unsupportedpastels.hermesandroid.files.ManagedVideoMedia
 import com.unsupportedpastels.hermesandroid.files.HostFileContent
 import com.unsupportedpastels.hermesandroid.files.HostFileListing
+import com.unsupportedpastels.hermesandroid.navigation.AllProjectsRoute
 import com.unsupportedpastels.hermesandroid.navigation.HomeRoute
 import com.unsupportedpastels.hermesandroid.navigation.ProjectRoute
 import com.unsupportedpastels.hermesandroid.navigation.RecentSessionsRoute
@@ -410,6 +411,28 @@ fun HermesApp(
         }
         Unit
     }
+    // Home and its full-list screens start a no-project task; the dock owns
+    // this action when the navigation rail is visible.
+    val showHomeNewTaskAction = !supportsNavigationRail &&
+        snapshot.authenticationState == AuthenticationState.Authenticated
+    val startHomeTask = {
+        val newSessionId = onCreateSession()
+        if (newSessionId != null) navigateToSession(newSessionId)
+        Unit
+    }
+    val navigateToAllProjects = {
+        if (backStack.lastOrNull() !is AllProjectsRoute) {
+            backStack.add(AllProjectsRoute)
+        }
+        Unit
+    }
+    // Unlike Home and the dock, opening a project from All projects keeps the
+    // list underneath so Back returns to it.
+    val navigateToProjectFromAllProjects = { projectId: ProjectId ->
+        backStack.add(ProjectRoute(projectId))
+        onOpenProject(projectId)
+        Unit
+    }
     val stageShareIntoSession = { sessionId: DurableSessionId ->
         sharePayload?.let { payload ->
             val draftKey = "$connectionScopeKey\u0000${sessionId.value}"
@@ -688,6 +711,7 @@ fun HermesApp(
                     onProjectSelected = navigateToProject,
                     onSessionSelected = navigateToSession,
                     onRecentSessionsSelected = navigateToRecentSessions,
+                    onAllProjectsSelected = navigateToAllProjects,
                     onRenameSession = onRenameSession,
                     onSetSessionPinned = onSetSessionPinned,
                     onSetSessionArchived = onSetSessionArchived,
@@ -697,10 +721,7 @@ fun HermesApp(
                     onRemoveSessionFilter = onRemoveSessionFilter,
                     onSearchTranscripts = onSearchTranscripts,
                     onCreateProject = { projectCreatorOpen = true },
-                    onNewSession = {
-                        val newSessionId = onCreateSession()
-                        if (newSessionId != null) navigateToSession(newSessionId)
-                    },
+                    onNewSession = startHomeTask,
                 )
             }
             entry<RecentSessionsRoute>(
@@ -715,6 +736,24 @@ fun HermesApp(
                     onLoadMore = onLoadMoreRecentSessions,
                     onRefreshWorkingPresence = onRefreshWorkingPresence,
                     onSessionSelected = navigateToSession,
+                    showNewTaskAction = showHomeNewTaskAction,
+                    onNewTask = startHomeTask,
+                )
+            }
+            entry<AllProjectsRoute>(
+                metadata = ListDetailSceneStrategy.detailPane(),
+            ) {
+                AllProjectsScreen(
+                    projects = projects,
+                    workingProjectIds = workingProjectIds(snapshot),
+                    showBack = !supportsListDetail,
+                    showCreateProjectAction = !supportsNavigationRail,
+                    canCreateProject = snapshot.authenticationState == AuthenticationState.Authenticated,
+                    onBack = navigateBack,
+                    onProjectSelected = navigateToProjectFromAllProjects,
+                    onCreateProject = { projectCreatorOpen = true },
+                    showNewTaskAction = showHomeNewTaskAction,
+                    onNewTask = startHomeTask,
                 )
             }
             entry<ProjectRoute>(

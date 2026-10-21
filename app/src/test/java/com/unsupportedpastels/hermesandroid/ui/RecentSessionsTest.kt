@@ -41,6 +41,28 @@ class RecentSessionsTest {
         }
     }
 
+    @Test fun fullListKeepsTheNewTaskButtonFromHome() {
+        var newTasks = 0
+        composeRule.setContent {
+            HermesAndroidTheme {
+                RecentSessionsScreen(
+                    HermesGatewaySnapshot(recentSessions = RecentSessionsState(listOf(session))),
+                    listOf(project), true, {}, {}, {},
+                    onSessionSelected = {},
+                    showNewTaskAction = true,
+                    onNewTask = { newTasks++ },
+                )
+            }
+        }
+        composeRule.onNodeWithContentDescription("New task").assertIsDisplayed().performClick()
+        assertEquals(1, newTasks)
+    }
+
+    @Test fun fullListHidesTheNewTaskButtonWhenTheDockOwnsIt() {
+        render(HermesGatewaySnapshot(recentSessions = RecentSessionsState(listOf(session))))
+        composeRule.onNodeWithContentDescription("New task").assertDoesNotExist()
+    }
+
     @Test fun globalRowsShowInboxMetadataProjectAndSelection() {
         var selected: DurableSessionId? = null
         render(HermesGatewaySnapshot(recentSessions = RecentSessionsState(listOf(session))), select = { selected = it })

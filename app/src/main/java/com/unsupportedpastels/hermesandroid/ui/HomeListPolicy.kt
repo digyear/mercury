@@ -8,14 +8,56 @@ import com.unsupportedpastels.hermesandroid.app.DurableSessionId
 import com.unsupportedpastels.hermesandroid.app.ProjectSummary
 import com.unsupportedpastels.hermesandroid.app.ProjectId
 import com.unsupportedpastels.hermesandroid.app.SessionSummary
+import com.unsupportedpastels.hermesandroid.app.isNoProjectBucket
 import com.unsupportedpastels.hermesandroid.app.validProjectWorkspacePath
 import com.unsupportedpastels.hermesandroid.connection.ServerOrigin
 import com.unsupportedpastels.hermesandroid.connection.SessionSearchResult
 import com.unsupportedpastels.hermesandroid.gateway.AuthenticationState
+import com.unsupportedpastels.hermesandroid.gateway.ChatSessionSnapshot
 import com.unsupportedpastels.hermesandroid.gateway.ConnectionState
 import com.unsupportedpastels.hermesandroid.gateway.HermesGatewaySnapshot
 
 private const val HOME_RECENT_SESSION_PREVIEW_LIMIT = 10
+
+/** Home shows a short project preview; "View all" opens the full list. */
+internal const val HOME_PROJECT_PREVIEW_LIMIT = 4
+
+/**
+ * Canonical project ordering for Home and All projects, matching iOS: most
+ * recent activity first, then label. The no-project bucket is excluded because
+ * its sessions already appear in Recent Sessions. Project activity falls back to
+ * the newest preview session when the server omits a project timestamp.
+ */
+internal fun sortedHomeProjects(projects: List<ProjectSummary>): List<ProjectSummary> =
+    projects
+        .filterNot { isNoProjectBucket(it.id) }
+        .sortedWith(
+            compareByDescending<ProjectSummary> { project ->
+                project.lastActiveEpochSeconds
+                    ?: project.previewSessions.mapNotNull(SessionSummary::lastActiveEpochSeconds).maxOrNull()
+                    ?: Double.NEGATIVE_INFINITY
+            }.thenBy(String.CASE_INSENSITIVE_ORDER, ProjectSummary::label),
+        )
+
+internal fun homeProjectPreview(projects: List<ProjectSummary>): List<ProjectSummary> =
+    sortedHomeProjects(projects).take(HOME_PROJECT_PREVIEW_LIMIT)
+
+/** Projects owning a session this client is currently sending in. */
+internal fun workingProjectIds(snapshot: HermesGatewaySnapshot): Set<ProjectId> {
+    val sendingSessionIds = snapshot.chatSessions
+        .filterValues(ChatSessionSnapshot::isSending)
+        .keys
+    return buildSet {
+        snapshot.durableSessions
+            .asSequence()
+            .filter { it.id in sendingSessionIds }
+            .mapNotNull(SessionSummary::projectId)
+            .forEach(::add)
+        snapshot.projectSessions.forEach { (projectId, sessions) ->
+            if (sessions.any { it.id in sendingSessionIds }) add(projectId)
+        }
+    }
+}
 
 private fun mergeSessionCollections(
     durableSessions: List<SessionSummary>,

@@ -80,7 +80,6 @@ import com.unsupportedpastels.hermesandroid.app.SessionSummary
 import com.unsupportedpastels.hermesandroid.connection.ServerSettingsState
 import com.unsupportedpastels.hermesandroid.gateway.AuthenticationState
 import com.unsupportedpastels.hermesandroid.gateway.CacheSource
-import com.unsupportedpastels.hermesandroid.gateway.ChatSessionSnapshot
 import com.unsupportedpastels.hermesandroid.gateway.ConnectionState
 import com.unsupportedpastels.hermesandroid.gateway.HermesGatewaySnapshot
 import com.unsupportedpastels.hermesandroid.gateway.RuntimeAccess
@@ -117,6 +116,7 @@ internal fun SessionListScreen(
     onProjectSelected: (ProjectId) -> Unit,
     onSessionSelected: (DurableSessionId) -> Unit,
     onRecentSessionsSelected: () -> Unit,
+    onAllProjectsSelected: () -> Unit = {},
     onRenameSession: suspend (DurableSessionId, String) -> Result<Unit>,
     onSetSessionPinned: suspend (DurableSessionId, Boolean) -> Result<Unit>,
     onSetSessionArchived: suspend (DurableSessionId, Boolean) -> Result<Unit>,
@@ -129,7 +129,6 @@ internal fun SessionListScreen(
     onNewSession: () -> Unit = {},
 ) {
     val connectionState = snapshot.connectionState
-    val semanticColors = LocalHermesSemanticColors.current
     val serverOrigin = (serverSettingsState as? ServerSettingsState.Ready)?.serverOrigin
     val isRelayConnection = snapshot.relayTargetId != null
     val hasConfiguredConnection = isRelayConnection || serverOrigin != null
@@ -203,6 +202,12 @@ internal fun SessionListScreen(
                 session.title.contains(normalizedSearch, ignoreCase = true)
             }
     }
+    // Home previews a few projects; a search still surfaces every match.
+    val homeProjects = if (normalizedSearch.isEmpty()) {
+        homeProjectPreview(visibleProjects)
+    } else {
+        sortedHomeProjects(visibleProjects)
+    }
     val visibleSessions = sessions.filter { session ->
         session.id != pendingDelete?.id &&
             (!pinnedOnly || session.pinned) &&
@@ -270,19 +275,7 @@ internal fun SessionListScreen(
         contentWindowInsets = WindowInsets.safeDrawing,
         floatingActionButton = {
             if (showDockOwnedActions && canStartNewChat) {
-                Surface(
-                    onClick = dropUnlessResumed { onNewSession() },
-                    shape = MaterialTheme.shapes.small,
-                    color = semanticColors.active,
-                    contentColor = semanticColors.onActive,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .semantics { contentDescription = "New task" },
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Add, contentDescription = null)
-                    }
-                }
+                NewTaskFab(onClick = onNewSession)
             }
         },
         topBar = {
@@ -633,29 +626,30 @@ internal fun SessionListScreen(
                         )
                     }
                 }
-                if (visibleProjects.isNotEmpty() && projectState is ProjectLoadState.Loaded) {
-                    val sendingSessionIds = snapshot.chatSessions
-                        .filterValues(ChatSessionSnapshot::isSending)
-                        .keys
-                    val workingProjectIds = buildSet {
-                        snapshot.durableSessions
-                            .asSequence()
-                            .filter { it.id in sendingSessionIds }
-                            .mapNotNull(SessionSummary::projectId)
-                            .forEach(::add)
-                        snapshot.projectSessions.forEach { (projectId, sessions) ->
-                            if (sessions.any { it.id in sendingSessionIds }) add(projectId)
+                if (homeProjects.isNotEmpty() && projectState is ProjectLoadState.Loaded) {
+                    val workingProjectIds = workingProjectIds(snapshot)
+                    item(key = "projects-heading") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Projects",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(
+                                onClick = dropUnlessResumed { onAllProjectsSelected() },
+                                modifier = Modifier.semantics {
+                                    contentDescription = "View all projects"
+                                },
+                            ) { Text("View all") }
                         }
                     }
-                    item(key = "projects-heading") {
-                        Text(
-                            "Projects",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        )
-                    }
-                    items(visibleProjects, key = { "project:${it.id.value}" }) { project ->
+                    items(homeProjects, key = { "project:${it.id.value}" }) { project ->
                         ProjectHomeRow(
                             project = project,
                             working = project.id in workingProjectIds,
@@ -824,6 +818,25 @@ internal fun SessionListScreen(
         } else if (pendingDelete?.id == session.id) {
             onDeleteSession(session.id)
             pendingDelete = null
+        }
+    }
+}
+
+/** Home's "New task" button, shared by the full-list screens Home links to. */
+@Composable
+internal fun NewTaskFab(onClick: () -> Unit) {
+    val semanticColors = LocalHermesSemanticColors.current
+    Surface(
+        onClick = dropUnlessResumed { onClick() },
+        shape = MaterialTheme.shapes.small,
+        color = semanticColors.active,
+        contentColor = semanticColors.onActive,
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { contentDescription = "New task" },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Add, contentDescription = null)
         }
     }
 }

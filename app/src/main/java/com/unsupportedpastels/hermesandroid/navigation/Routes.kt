@@ -16,6 +16,9 @@ data object SessionListRoute : NavKey
 data object RecentSessionsRoute : NavKey
 
 @Serializable
+data object AllProjectsRoute : NavKey
+
+@Serializable
 data class ProjectRoute(val projectId: ProjectId) : NavKey
 
 @Serializable
